@@ -24,6 +24,7 @@ struct Command {
 static struct Command commands[] = {
 	{ "help", "Display this list of commands", mon_help },
 	{ "kerninfo", "Display information about the kernel", mon_kerninfo },
+	{ "backtrace","Display stack backtrace",mon_backtrace },
 };
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
 
@@ -34,6 +35,11 @@ unsigned read_eip();
 int
 mon_help(int argc, char **argv, struct Trapframe *tf)
 {
+	cprintf("x=%-5d y=%-5d", 22);
+
+	unsigned int a = 0x00646c72;
+    cprintf("H%x Wo%s", 57616, &a);
+
 	int i;
 
 	for (i = 0; i < NCOMMANDS; i++)
@@ -45,7 +51,7 @@ int
 mon_kerninfo(int argc, char **argv, struct Trapframe *tf)
 {
 	extern char entry[], etext[], edata[], end[];
-
+	uint64_t tsc = read_tsc();
 	cprintf("Special kernel symbols:\n");
 	cprintf("  entry  %08x (virt)  %08x (phys)\n", entry, entry - KERNBASE);
 	cprintf("  etext  %08x (virt)  %08x (phys)\n", etext, etext - KERNBASE);
@@ -53,6 +59,7 @@ mon_kerninfo(int argc, char **argv, struct Trapframe *tf)
 	cprintf("  end    %08x (virt)  %08x (phys)\n", end, end - KERNBASE);
 	cprintf("Kernel executable memory footprint: %dKB\n",
 		(end-entry+1023)/1024);
+	cprintf("kerninfo cycles: %ld\n",tsc);
 	return 0;
 }
 
@@ -87,11 +94,14 @@ start_overflow(void)
     char str[256] = {};
     int nstr = 0;
     char *pret_addr;
-
+	uint32_t flowaddr = (uint32_t)do_overflow+3;
+	pret_addr = (char *)read_pretaddr();
+	uint32_t j;
+	for(j = 0;j < 4;j++){
+		*(pret_addr+j)=(flowaddr>>(8*j))&0xff;
+	}
 	// Your code here.
-    
-
-
+	
 }
 
 void
@@ -105,6 +115,28 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 {
 	// Your code here.
     overflow_me();
+    cprintf("Stack backtrace:\n");
+	struct Eipdebuginfo info;
+	struct Eipdebuginfo funinfo;
+    uint32_t eip,ebp = read_ebp(); 
+   	int a1,a2,a3,a4,a5;
+   	while(1){
+   		eip = *((int*)ebp + 1);
+   		a1 = *((int*)ebp + 2);
+   		a2 = *((int*)ebp + 3);
+   		a3 = *((int*)ebp + 4);
+   		a4 = *((int*)ebp + 5);
+   		a5 = *((int*)ebp + 6);
+		debuginfo_eip(eip,&info);
+		debuginfo_eip(info.eip_fn_addr,&funinfo);
+   		cprintf("  eip %08x  ebp %08x  args %08x %08x %08x %08x %08x\n",eip,ebp,a1,a2,a3,a4,a5);
+		cprintf("\t %s:%d: %s+%d\n",info.eip_file,info.eip_line,info.eip_fn_name,info.eip_line-funinfo.eip_line);
+   		ebp = *((int*)ebp);
+   		if((int*)ebp == NULL){
+   			break;
+   		}
+   	}
+	
     cprintf("Backtrace success\n");
 	return 0;
 }
