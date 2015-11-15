@@ -263,7 +263,7 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 			printnum(putch, putdat, num, base, width, padc);
 			break;
 
-        case 'n': {
+        /*case 'n': {
             // You can consult the %n specifier specification of the C99 printf function
             // for your reference by typing "man 3 printf" on the console. 
 
@@ -295,7 +295,7 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
         		}
         	}
             break;
-        }
+        }*/
 
 		// escaped '%' character
 		case '%':
