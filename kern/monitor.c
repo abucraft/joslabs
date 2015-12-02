@@ -11,6 +11,7 @@
 #include <kern/monitor.h>
 #include <kern/kdebug.h>
 #include <kern/trap.h>
+#include <kern/env.h>
 
 #define CMDBUF_SIZE	80	// enough for one VGA text line
 
@@ -26,6 +27,9 @@ static struct Command commands[] = {
 	{ "help", "Display this list of commands", mon_help },
 	{ "kerninfo", "Display information about the kernel", mon_kerninfo },
 	{ "backtrace","Display stack backtrace",mon_backtrace },
+	{ "x", "Display the memory",mon_x},
+	{ "si", "Step by step",mon_si},
+	{ "c", "Continue",mon_c}
 };
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
 
@@ -63,7 +67,27 @@ mon_kerninfo(int argc, char **argv, struct Trapframe *tf)
 	cprintf("kerninfo cycles: %ld\n",tsc);
 	return 0;
 }
-
+int mon_x(int argc, char **argv, struct Trapframe *tf){
+	if(argc != 2){
+		cprintf("please enter addr");
+		return 0;
+	}
+	uint32_t addr = strtol(argv[1],NULL,16);
+	uint32_t val = *(uint32_t*)addr;
+	cprintf("%d\n",val);
+	return 0;
+}
+int mon_si(int argc, char **argv, struct Trapframe *tf){
+	tf->tf_eflags = tf->tf_eflags|FL_TF;
+	cprintf("tf_eip=0x%x\n",tf->tf_eip);
+	env_run(curenv);
+	return 0;
+}
+int mon_c(int argc, char **argv, struct Trapframe *tf){
+	tf->tf_eflags&=~FL_TF;
+	env_run(curenv);
+	return 0;
+}
 // Lab1 only
 // read the pointer to the retaddr on the stack
 static uint32_t
@@ -116,7 +140,7 @@ int
 mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 {
 	// Your code here.
-    /*overflow_me();
+    //overflow_me();
     cprintf("Stack backtrace:\n");
 	struct Eipdebuginfo info;
 	struct Eipdebuginfo funinfo;
@@ -139,7 +163,7 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf)
    		}
    	}
 	
-    cprintf("Backtrace success\n");*/
+    cprintf("Backtrace success\n");
 	return 0;
 }
 

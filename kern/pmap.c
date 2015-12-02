@@ -104,8 +104,15 @@ boot_alloc(uint32_t n)
 	// to a multiple of PGSIZE.
 	//
 	// LAB 2: Your code here.
-	result = nextfree;
-	nextfree = ROUNDUP((char*)nextfree+n,PGSIZE);
+	//result = nextfree;
+	//nextfree = ROUNDUP((char*)nextfree+n,PGSIZE);
+	nextfree = ROUNDUP(nextfree,PGSIZE);
+	result = KADDR(PADDR(nextfree));
+	if(n>0){
+		nextfree +=n;
+		KADDR(PADDR(nextfree));
+		nextfree = ROUNDUP(nextfree,PGSIZE);
+	}
 	return result;
 }
 
@@ -150,13 +157,14 @@ mem_init(void)
 	// each physical page, there is a corresponding struct Page in this
 	// array.  'npages' is the number of physical pages in memory.
 	// Your code goes here:
+	
 	pages=boot_alloc(npages*sizeof(struct Page));
-
+	memset(pages,0,npages*sizeof(struct Page));
 
 	//////////////////////////////////////////////////////////////////////
 	// Make 'envs' point to an array of size 'NENV' of 'struct Env'.
 	// LAB 3: Your code here.
-
+	envs=boot_alloc(NENV*sizeof(struct Env));
 	//////////////////////////////////////////////////////////////////////
 	// Now that we've allocated the initial kernel data structures, we set
 	// up the list of free physical pages. Once we've done so, all further
@@ -190,7 +198,7 @@ mem_init(void)
 	//    - the new image at UENVS  -- kernel R, user R
 	//    - envs itself -- kernel RW, user NONE
 	// LAB 3: Your code here.
-
+	boot_map_region(kern_pgdir,UENVS,ROUNDUP(NENV*sizeof(struct Env),PGSIZE),PADDR(envs),PTE_P | PTE_U);
 	//////////////////////////////////////////////////////////////////////
 	// Use the physical memory that 'bootstack' refers to as the kernel
 	// stack.  The kernel stack grows down from virtual address KSTACKTOP.
@@ -281,7 +289,7 @@ page_init(void)
 	extern char end[];
 	pages[1].pp_link = NULL;
 	struct Page *start,*next;
-	start = pa2page((physaddr_t)end - KERNBASE+PGSIZE+npages*sizeof(struct Page));
+	start = pa2page((physaddr_t)end - KERNBASE+PGSIZE+ROUNDUP(npages*sizeof(struct Page),PGSIZE)+ROUNDUP(NENV*sizeof(struct Env),PGSIZE));
 	next = pa2page(IOPHYSMEM);
 	start = start+1;
 	next = next - 1;
@@ -677,7 +685,22 @@ int
 user_mem_check(struct Env *env, const void *va, size_t len, int perm)
 {
 	// LAB 3: Your code here.
-
+	uintptr_t low = (uintptr_t) va;
+	uintptr_t high = (uintptr_t) va + len -1;
+	uintptr_t idx = low;
+	pte_t *pte;
+	perm |= PTE_U |PTE_P;
+	for(; idx <= high; idx = ROUNDDOWN(idx + PGSIZE,PGSIZE)){
+		if(idx >= ULIM){
+			user_mem_check_addr = idx;
+			return -E_FAULT;
+		}
+		pte = pgdir_walk(env->env_pgdir,(void*)idx, 0);
+		if(pte == NULL ||(*pte &perm)!=perm){
+			user_mem_check_addr = idx;
+			return -E_FAULT;
+		}
+	}
 	return 0;
 }
 

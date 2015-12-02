@@ -26,6 +26,7 @@ struct Pseudodesc idt_pd = {
 };
 
 
+
 static const char *trapname(int trapno)
 {
 	static const char * const excnames[] = {
@@ -64,9 +65,48 @@ trap_init(void)
 {
 	extern struct Segdesc gdt[];
 
+	extern void divide_trap();
+	extern void debug_trap();
+	extern void nmi_trap();
+	extern void brkpt_trap();
+	extern void oflow_trap();
+	extern void bound_trap();
+	extern void illop_trap();
+	extern void device_trap();
+	extern void dblflt_trap();
+	extern void tss_trap();
+	extern void segnp_trap();
+	extern void stack_trap();
+	extern void gpflt_trap();
+	extern void pgflt_trap();
+	extern void fperr_trap();
+	extern void align_trap();
+	extern void mchk_trap();
+	extern void simderr_trap();
 	// LAB 3: Your code here.
-
+	SETGATE(idt[T_DIVIDE],0,GD_KT,divide_trap,0);
+	SETGATE(idt[T_DEBUG],0,GD_KT,debug_trap,0);
+	SETGATE(idt[T_NMI],0,GD_KT,nmi_trap,0);
+	SETGATE(idt[T_BRKPT],0,GD_KT,brkpt_trap,3);
+	SETGATE(idt[T_OFLOW],0,GD_KT,oflow_trap,0);
+	SETGATE(idt[T_BOUND],0,GD_KT,bound_trap,0);
+	SETGATE(idt[T_ILLOP],0,GD_KT,illop_trap,0);
+	SETGATE(idt[T_DEVICE],0,GD_KT,device_trap,0);
+	SETGATE(idt[T_DBLFLT],0,GD_KT,dblflt_trap,0);
+	SETGATE(idt[T_TSS],0,GD_KT,tss_trap,0);
+	SETGATE(idt[T_SEGNP],0,GD_KT,segnp_trap,0);
+	SETGATE(idt[T_STACK],0,GD_KT,stack_trap,0);
+	SETGATE(idt[T_GPFLT],0,GD_KT,gpflt_trap,0);
+	SETGATE(idt[T_PGFLT],0,GD_KT,pgflt_trap,0);
+	SETGATE(idt[T_FPERR],0,GD_KT,fperr_trap,0);
+	SETGATE(idt[T_ALIGN],0,GD_KT,align_trap,0);
+	SETGATE(idt[T_MCHK],0,GD_KT,mchk_trap,0);
+	SETGATE(idt[T_SIMDERR],0,GD_KT,simderr_trap,0);
 	// Per-CPU setup 
+	extern void sysenter_handler();
+	wrmsr(0x174, (uint32_t)GD_KT, 0);
+	wrmsr(0x175, (uint32_t)KSTACKTOP, 0);
+	wrmsr(0x176, (uint32_t)sysenter_handler, 0);
 	trap_init_percpu();
 }
 
@@ -144,6 +184,15 @@ trap_dispatch(struct Trapframe *tf)
 	// Handle processor exceptions.
 	// LAB 3: Your code here.
 
+	switch(tf->tf_trapno){
+		case T_PGFLT:
+		page_fault_handler(tf);
+		break;
+		case T_BRKPT:
+		case T_DEBUG:
+		monitor(tf);
+		break;
+	}
 	// Unexpected trap: The user process or the kernel has a bug.
 	print_trapframe(tf);
 	if (tf->tf_cs == GD_KT)
@@ -203,6 +252,10 @@ page_fault_handler(struct Trapframe *tf)
 	// Handle kernel-mode page faults.
 
 	// LAB 3: Your code here.
+	if(!(tf->tf_cs&0x3)){
+		panic("kernel page fault");
+	}
+
 
 	// We've already handled kernel-mode exceptions, so if we get here,
 	// the page fault happened in user mode.

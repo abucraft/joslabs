@@ -5,11 +5,10 @@
 #include <inc/mmu.h>
 #include <inc/x86.h>
 
-
+char emptypage[PGSIZE];
 // Call this function with ring0 privilege
 void evil()
 {
-	// Kernel memory access
 	*(char*)0xf010000a = 0;
 
 	// Out put something via outb
@@ -33,6 +32,14 @@ sgdt(struct Pseudodesc* gdtd)
 	__asm __volatile("sgdt %0" :  "=m" (*gdtd));
 }
 
+
+static void (*fun_to_call)(void) = NULL;
+
+static void before_func(){
+	fun_to_call();
+	__asm __volatile("leave\n\t""lret");
+}
+
 // Invoke a given function pointer with ring0 privilege, then return to ring3
 void ring0_call(void (*fun_ptr)(void)) {
     // Here's some hints on how to achieve this.
@@ -49,6 +56,22 @@ void ring0_call(void (*fun_ptr)(void)) {
     //        file if necessary.
 
     // Lab3 : Your Code Here
+    struct Pseudodesc gdtr;
+    sgdt(&gdtr);
+
+
+    sys_map_kernel_page((char*)gdtr.pd_base,emptypage);
+    struct Gatedesc *gdt = (struct Gatedesc *) ((PGNUM(emptypage)<<PTXSHIFT) + PGOFF(gdtr.pd_base));
+    struct Gatedesc replaced = gdt[5];
+
+
+    fun_to_call = fun_ptr;
+	SETCALLGATE(((struct Gatedesc volatile *)gdt)[5], GD_KT, before_func, 3);
+
+	// call the function through far call instruction
+	__asm __volatile ("lcall $0x28, $0" );
+	cprintf("long return\n");
+	gdt[5] = replaced;
 }
 
 void
@@ -57,6 +80,7 @@ umain(int argc, char **argv)
         // call the evil function in ring0
 	ring0_call(&evil);
 
+	cprintf("before ring3 evil\n");
 	// call the evil function in ring3
 	evil();
 }
