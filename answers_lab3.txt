@@ -1,0 +1,15 @@
+Question1
+
+若把所有的trap都跳转到同一个trap handler，那么就无法分辨是哪个trap触发的，然后是不能设置trap的DPL，也就是用户态不能调用int 3来触发BRKPT。
+
+Question2
+
+将T_PGFLT的DPL设置为0就能阻止用户调用 int 14。如果用户能调用int 14 kernel就会终止这个进程
+
+Question3
+
+只要把IDT的T_BRKPT项的DPL设置为3就能让用户态调用 int 3指令。
+
+Question4
+
+这些机制是为了能使kernel控制user的权限。
